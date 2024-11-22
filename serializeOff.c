@@ -25,7 +25,7 @@ int __attribute__ ((noinline)) withspecKind1(int* a,volatile int** c){
         __asm__ volatile(
 		"serialize\n"
 //              "lfence\n"
-//              "rdtsc\n"
+//              "rdtscp\n"
 //              "addq %%rax, %%rdi\n"
 //		"subq %%rax, %%rdi\n"
                 "movq (%%rdi), %%rax\n"
@@ -111,7 +111,8 @@ void test_withspecKind1() {
 		// return 0 for total elapsed time if we got interrupted by
 		// system in the middle of our measurement.
 	        total_elapsed += end -start;
-	}
+	} 
+	else { total_elapsed = -1; }
 
     printf(" %llu ", total_elapsed);
    }
@@ -175,6 +176,7 @@ void test_withspecKind2() {
 		// system in the middle of our measurement.
 	        total_elapsed += end -start;
 	}
+	else { total_elapsed = -1; }
 
     printf(" %llu ", total_elapsed);
 }
@@ -237,6 +239,7 @@ void ref(int incache){
 	if (end - start < 1000) {
 	        total_elapsed += end -start;
 	}
+	else { total_elapsed = -1; }
     printf(" %llu ", total_elapsed);
 }
 
