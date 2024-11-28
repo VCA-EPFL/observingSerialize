@@ -29,6 +29,7 @@ def read_json_lines():
             print(f"Error: {e}")
     return data, filtered_counts
 
+
 def create_histograms(data, filtered_counts):
     """Create histograms for each field in the data using the same bins."""
     n_fields = len(data)

@@ -5,7 +5,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#define N 2
+#define N 1000
 #define M 100
 #include <time.h>
 
@@ -23,11 +23,11 @@ int __attribute__ ((noinline)) withspecKind1(int* a,volatile int** c){
     int v;
     if (**c) {
         __asm__ volatile(
-		"serialize\n"
-//              "lfence\n"
-//              "rdtscp\n"
-//              "addq %%rax, %%rdi\n"
-//		"subq %%rax, %%rdi\n"
+//		"serialize\n"
+       //         "lfence\n"
+              "rdtscp\n"
+              "addq %%rax, %%rdi\n"
+		"subq %%rax, %%rdi\n"
                 "movq (%%rdi), %%rax\n"
                 : "=a" (v)
                 :
@@ -58,6 +58,85 @@ int __attribute__ ((noinline)) withspecKind2(int* a,volatile int** c){
     return 0;
 }
 #pragma GCC pop_options
+
+void test_withspecKind3() {
+    uint64_t start=0;
+    uint64_t end=0;
+    uint64_t total_elapsed=0;
+    uint64_t mask = ((uint64_t) &cc1) ^ ((uint64_t) &cc2);
+    uint64_t lastime = 0;
+    uint64_t acc;
+
+        // Train the branch predictor
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < M; j++) {
+		// Remove everything of interest from the cache
+	        __asm__ volatile (
+	            "clflush (%0)\n"
+	            "clflush (%1)\n"
+	            "clflush (%2)\n"
+	            "clflush (%3)\n" 
+	            "clflush (%4)\n"
+	            "lfence\n"
+	            "sfence\n"
+	            "mfence\n"
+		    "serialize\n" :: "r"(&a),"r"(&c1),"r"(&c2),"r"(&cc2),"r"(&cc1)
+	        );
+
+
+	    lastime = (j == M-1)*(-1);
+	    acc = (mask & lastime) ^ ((uint64_t) &cc1);  
+            withspecKind1(&a, (int**) acc);
+       		// Start timer
+       		 __asm__ volatile (
+       		     "serialize\n"
+       		     "lfence\n"
+       		     "sfence\n"
+       		     "mfence\n"
+       		     "rdtscp\n"
+       		     : "=A" (start)
+       		 );
+       		 // Load a
+       		 __asm__ volatile (
+       		     "mov (%0), %%rdx"
+       		     :
+       		     : "r" (&a)
+       		     : "rdx"
+       		 );
+       		 // Stop timer
+       		 __asm__ volatile (
+       		     "lfence\n"
+       		     "rdtscp\n"
+       		     : "=A" (end)
+       		 );
+         total_elapsed += (lastime & (end-start));
+
+
+        }
+ 	__asm__ volatile (
+	    "clflush (%0)\n"
+	    "clflush (%1)\n"
+	    "clflush (%2)\n"
+	    "clflush (%3)\n" 
+	    "clflush (%4)\n"
+	    "lfence\n"
+	    "sfence\n"
+	    "mfence\n"
+	    "serialize\n" :: "r"(&a),"r"(&c1),"r"(&c2),"r"(&cc2),"r"(&cc1)
+	);
+
+
+	printf("{ \"kind1\": ");
+    	printf(" %llu ", total_elapsed);
+	printf(", \"kind2\": 0");
+	printf(", \"refInCache\": ");
+	ref(1);
+	printf(", \"refOutCache\": ");
+	ref(0);
+	printf("}\n");
+	total_elapsed = 0;
+    }
+   }
 
 void test_withspecKind1() {
     uint64_t start=0;
@@ -246,14 +325,16 @@ void ref(int incache){
 
 
 int main() {
-	printf("{ \"kind1\": ");
-	test_withspecKind1();
-	printf(", \"kind2\": ");
-	test_withspecKind2();
-	printf(", \"refInCache\": ");
-	ref(1);
-	printf(", \"refOutCache\": ");
-	ref(0);
-	printf("}\n");
+//	printf("{ \"kind3\": ");
+	test_withspecKind3();
+//	printf(", \"kind2\": ");
+//	test_withspecKind2();
+//	printf(", \"kind3\": ");
+//	test_withspecKind3();
+//	printf(", \"refInCache\": ");
+//	ref(1);
+//	printf(", \"refOutCache\": ");
+//	ref(0);
+//	printf("}\n");
 	return 0;
 }
